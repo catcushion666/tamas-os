@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#000000">
+<title>TAMAS OS</title>
+<style>
+:root{
+  --ink:#000000;
+  --bone:#E8E4DA;
+  --dim:#6B6660;
+  --line:#2A2723;
+  --mark:#C8321E;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;padding:0;background:var(--ink);color:var(--bone)}
+body{
+  font-family:ui-monospace,"Roboto Mono",Menlo,Consolas,monospace;
+  font-size:14px;line-height:1.5;
+  padding:20px 18px 48px;
+  max-width:520px;margin:0 auto;
+  -webkit-font-smoothing:antialiased;
+}
+.hd{display:flex;align-items:baseline;gap:10px;margin-bottom:22px}
+.hd h1{font-size:15px;font-weight:400;letter-spacing:0.22em;margin:0}
+.hd .dt{margin-left:auto;font-size:11px;color:var(--dim);letter-spacing:0.1em}
+.ruler{font-size:11px;color:var(--mark);letter-spacing:0.1em}
+
+.rows{border-top:1px solid var(--line)}
+.row{
+  display:flex;align-items:center;gap:14px;
+  width:100%;padding:15px 2px;
+  background:none;border:0;border-bottom:1px solid var(--line);
+  color:var(--bone);font:inherit;text-align:left;cursor:pointer;
+}
+.row:active{background:#0F0D0B}
+.row .gl{font-size:20px;width:24px;text-align:center}
+.row .nm{letter-spacing:0.14em;font-size:13px}
+.row .vl{margin-left:auto;font-size:18px;color:var(--dim);font-variant-numeric:tabular-nums}
+.row .vl.on{color:var(--bone)}
+
+.tot{display:flex;align-items:baseline;gap:10px;margin:20px 0 6px}
+.tot b{font-size:40px;font-weight:400;font-variant-numeric:tabular-nums;letter-spacing:-0.02em}
+.tot span{font-size:11px;color:var(--dim);letter-spacing:0.14em}
+
+.bk{
+  display:flex;align-items:center;gap:12px;margin-bottom:26px;
+  background:none;border:0;color:var(--bone);font:inherit;padding:0;cursor:pointer;
+}
+.bk .gl{font-size:22px}
+.bk .nm{letter-spacing:0.2em;font-size:14px}
+.bk .vl{margin-left:auto;font-size:28px;font-variant-numeric:tabular-nums}
+
+.grp{margin-bottom:24px}
+.grp>i{
+  display:block;font-style:normal;font-size:10px;color:var(--dim);
+  letter-spacing:0.22em;margin-bottom:10px;
+}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{
+  background:none;border:1px solid var(--line);color:var(--dim);
+  font:inherit;font-size:12px;padding:9px 13px;cursor:pointer;
+  letter-spacing:0.06em;
+}
+.chip[aria-pressed="true"]{border-color:var(--mark);color:var(--bone);background:#1A0906}
+.nums{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+label{display:block;font-size:10px;color:var(--dim);letter-spacing:0.14em;margin-bottom:5px}
+input,textarea{
+  width:100%;background:#0B0A09;border:1px solid var(--line);color:var(--bone);
+  font:inherit;padding:11px 12px;border-radius:0;
+}
+input:focus,textarea:focus{outline:2px solid var(--mark);outline-offset:-1px}
+textarea{resize:vertical;min-height:92px;line-height:1.6}
+.meta{font-size:11px;color:var(--dim);margin-top:8px}
+
+.act{
+  width:100%;background:none;border:1px solid var(--bone);color:var(--bone);
+  font:inherit;font-size:13px;letter-spacing:0.18em;padding:15px;cursor:pointer;margin-top:8px;
+}
+.act:active{background:var(--bone);color:var(--ink)}
+.act.done{border-color:var(--mark);color:var(--mark)}
+.err{font-size:12px;color:var(--mark);margin-top:10px;min-height:16px}
+.ft{margin-top:34px;display:flex;gap:18px}
+.ft button{background:none;border:0;color:var(--dim);font:inherit;font-size:11px;
+  letter-spacing:0.14em;padding:0;cursor:pointer;text-decoration:underline}
+:focus-visible{outline:2px solid var(--mark);outline-offset:2px}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+</style>
+</head>
+<body>
+
+<div id="app"></div>
+
+<script>
+var AX = [
+  {id:"mars",   gl:"\u2642", nm:"GYM",       day:2},
+  {id:"saturn", gl:"\u2644", nm:"LOCKED IN", day:6},
+  {id:"venus",  gl:"\u2640", nm:"COOK",      day:5},
+  {id:"jup",    gl:"\u2643", nm:"BAG",       day:4},
+  {id:"merc",   gl:"\u263F", nm:"LORE",      day:3},
+  {id:"moon",   gl:"\u263D", nm:"GLOW",      day:1}
+];
+
+var mem = {};
+var store = {
+  all: function(){
+    try { return JSON.parse(localStorage.getItem("tamas_os") || "{}"); }
+    catch(e){ return mem; }
+  },
+  save: function(o){
+    mem = o;
+    try { localStorage.setItem("tamas_os", JSON.stringify(o)); } catch(e){}
+  }
+};
+function todayKey(){
+  var d = new Date();
+  return d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0") + "-" + String(d.getDate()).padStart(2,"0");
+}
+function dayData(){
+  var a = store.all();
+  return a[todayKey()] || {};
+}
+function putAxis(id, obj){
+  var a = store.all(), k = todayKey();
+  if(!a[k]) a[k] = {};
+  a[k][id] = obj;
+  store.save(a);
+}
+function scoreOf(id){
+  var d = dayData()[id];
+  return d && typeof d.score === "number" ? d.score : 0;
+}
+function clamp(n){ return Math.max(0, Math.min(100, Math.round(n))); }
+
+var app = document.getElementById("app");
+var view = "home";
+var current = null;
+
+function hexPoints(vals, radius){
+  var cx = 160, cy = 150, out = [];
+  for (var i = 0; i < 6; i++){
+    var a = (-90 + 60*i) * Math.PI/180;
+    var r = radius * (vals[i]/100);
+    out.push((cx + r*Math.cos(a)).toFixed(1) + "," + (cy + r*Math.sin(a)).toFixed(1));
+  }
+  return out.join(" ");
+}
+function ring(f){
+  var cx=160, cy=150, out=[];
+  for (var i=0;i<6;i++){
+    var a=(-90+60*i)*Math.PI/180;
+    out.push((cx+110*f*Math.cos(a)).toFixed(1)+","+(cy+110*f*Math.sin(a)).toFixed(1));
+  }
+  return out.join(" ");
+}
+
+function renderHome(){
+  var vals = AX.map(function(x){ return scoreOf(x.id); });
+  var area = 0;
+  for (var i=0;i<6;i++){ area += vals[i] * vals[(i+1)%6]; }
+  area = Math.round(area / 60000 * 100);
+
+  var dow = new Date().getDay();
+  var rulerAx = AX.filter(function(x){ return x.day === dow; })[0];
+  var rulerTxt = rulerAx ? rulerAx.gl + " " + rulerAx.nm + " RULES TODAY" : "\u2609 SUNDAY \u2014 REST AND REVIEW";
+
+  var spokes = "";
+  for (var s=0;s<6;s++){
+    var a=(-90+60*s)*Math.PI/180;
+    spokes += '<line x1="160" y1="150" x2="'+(160+110*Math.cos(a)).toFixed(1)+'" y2="'+(150+110*Math.sin(a)).toFixed(1)+'" stroke="var(--line)"/>';
+  }
+  var glyphs = "";
+  for (var g=0;g<6;g++){
+    var a2=(-90+60*g)*Math.PI/180;
+    var gx=160+130*Math.cos(a2), gy=150+130*Math.sin(a2)+7;
+    glyphs += '<text x="'+gx.toFixed(1)+'" y="'+gy.toFixed(1)+'" text-anchor="middle" font-size="19" fill="'+(vals[g]>0?"var(--bone)":"var(--dim)")+'">'+AX[g].gl+'</text>';
+  }
+
+  var rows = AX.map(function(x, i){
+    return '<button class="row" data-go="'+x.id+'">'
+      + '<span class="gl">'+x.gl+'</span>'
+      + '<span class="nm">'+x.nm+'</span>'
+      + '<span class="vl'+(vals[i]>0?" on":"")+'">'+vals[i]+'</span>'
+      + '</button>';
+  }).join("");
+
+  app.innerHTML =
+    '<div class="hd"><h1>TAMAS OS</h1><span class="dt">'+todayKey()+'</span></div>'
+    + '<div class="ruler">'+rulerTxt+'</div>'
+    + '<svg viewBox="0 0 320 300" width="100%" role="img" aria-label="Today\'s shape across six disciplines, '+area+' percent filled">'
+    + '<polygon points="'+ring(1)+'" fill="none" stroke="var(--line)"/>'
+    + '<polygon points="'+ring(0.66)+'" fill="none" stroke="var(--line)"/>'
+    + '<polygon points="'+ring(0.33)+'" fill="none" stroke="var(--line)"/>'
+    + spokes
+    + '<polygon points="'+hexPoints(vals,110)+'" fill="#C8321E" fill-opacity="0.22" stroke="#C8321E" stroke-width="2" stroke-linejoin="round"/>'
+    + glyphs
+    + '</svg>'
+    + '<div class="tot"><b>'+area+'</b><span>SHAPE FILLED</span></div>'
+    + '<div class="rows">'+rows+'</div>'
+    + '<div class="ft"><button data-act="export">EXPORT ALL DATA</button></div>';
+}
+
+function chipRow(name, items, multi){
+  return '<div class="grp"><i>'+name+'</i><div class="chips" data-set="'+(multi?"multi":"one")+'">'
+    + items.map(function(t){ return '<button class="chip" aria-pressed="false" data-v="'+t+'">'+t+'</button>'; }).join("")
+    + '</div></div>';
+}
+
+var SCREENS = {
+  mars: function(){
+    return '<div class="grp"><i>RUN</i><div class="nums">'
+      + '<div><label for="km">KM</label><input id="km" type="number" inputmode="decimal" step="0.1" placeholder="5.0"></div>'
+      + '<div><label for="mn">MINUTES</label><input id="mn" type="number" inputmode="numeric" placeholder="27"></div>'
+      + '</div><div class="meta" id="pace">Pace \u2014 . Copy it off Nike Run Club.</div></div>'
+      + chipRow("LIFT", ["Push","Pull","Legs","Rest day"], false)
+      + chipRow("FUEL", ["Diet held","Protein","Water","No junk"], true);
+  },
+  saturn: function(){
+    return '<div class="grp"><i>THE HOUR</i><div class="nums">'
+      + '<div><label for="wk">WOKE AT</label><input id="wk" type="time"></div>'
+      + '<div><label for="st">MINUTES SAT</label><input id="st" type="number" inputmode="numeric" placeholder="20"></div>'
+      + '</div></div>'
+      + chipRow("PRACTICE", ["Japa","Silence","No phone first hour","Cold"], true);
+  },
+  venus: function(){
+    return '<div class="grp"><i>DEMO</i>'
+      + '<input id="dn" type="text" placeholder="loop name" autocomplete="off"></div>'
+      + chipRow("HOW FAR IT GOT", ["Idea","Loop","Drums","Vocals","Bounced"], false)
+      + chipRow("ADMIN", ["Posted","Scheduled","Sent a DM","Artwork"], true);
+  },
+  jup: function(){
+    return '<div class="grp"><i>MOVEMENT</i><div class="nums">'
+      + '<div><label for="in">CAME IN</label><input id="in" type="number" inputmode="numeric" placeholder="0"></div>'
+      + '<div><label for="out">WENT OUT</label><input id="out" type="number" inputmode="numeric" placeholder="0"></div>'
+      + '</div><input id="lb" type="text" placeholder="what for" autocomplete="off" style="margin-top:12px"></div>'
+      + chipRow("THE WORK", ["Chased money","Invoiced","No junk spend"], true);
+  },
+  merc: function(){
+    return '<div class="grp"><i>BOOK</i><div class="nums">'
+      + '<div><label for="bk2">TITLE</label><input id="bk2" type="text" autocomplete="off"></div>'
+      + '<div><label for="pg">PAGE</label><input id="pg" type="number" inputmode="numeric"></div>'
+      + '</div></div>'
+      + '<div class="grp"><i>ONE THING YOU TOOK</i><textarea id="ins" placeholder="Not a summary. The line you\u2019d actually use."></textarea></div>'
+      + chipRow("TAG IT", ["sound","image","self","money"], true);
+  },
+  moon: function(){
+    return '<div class="grp"><i>LAST NIGHT</i>'
+      + '<div class="nums"><div><label for="sl">ASLEEP BY</label><input id="sl" type="time"></div><div></div></div></div>'
+      + chipRow("UPKEEP", ["Routine AM","Routine PM","Sunscreen","Water","Sun on skin"], true);
+  }
+};
+
+var SCORE = {
+  mars: function(s){
+    var n = Math.min((s.km||0)/5, 1) * 40;
+    if (s.one) n += (s.one === "Rest day" ? 20 : 30);
+    n += (s.multi.length) * 7.5;
+    return clamp(n);
+  },
+  saturn: function(s){
+    var n = 0;
+    if (s.wk){ var h = parseInt(s.wk.split(":")[0],10), m = parseInt(s.wk.split(":")[1],10);
+      var mins = h*60+m; n += mins <= 270 ? 30 : (mins <= 330 ? 18 : 6); }
+    n += Math.min((s.st||0)/30, 1) * 30;
+    n += s.multi.length * 10;
+    return clamp(n);
+  },
+  venus: function(s){
+    var stage = {"Idea":12,"Loop":26,"Drums":38,"Vocals":48,"Bounced":60};
+    var n = s.one ? stage[s.one] : 0;
+    n += s.multi.length * 10;
+    return clamp(n);
+  },
+  jup: function(s){
+    var n = (s["in"] || s.out) ? 30 : 0;
+    n += s.multi.length * 23;
+    return clamp(n);
+  },
+  merc: function(s){
+    var n = 0;
+    if (s.ins && s.ins.trim().length > 12) n += 60;
+    if (s.pg) n += 20;
+    if (s.multi.length) n += 20;
+    return clamp(n);
+  },
+  moon: function(s){
+    var n = s.multi.length * 16;
+    if (s.sl){ var h2 = parseInt(s.sl.split(":")[0],10); n += (h2 >= 21 && h2 <= 23) || h2 < 1 ? 20 : 8; }
+    return clamp(n);
+  }
+};
+
+function readForm(id){
+  var s = { multi: [], one: null };
+  var one = app.querySelector('[data-set="one"]');
+  if (one){ var sel = one.querySelector('[aria-pressed="true"]'); s.one = sel ? sel.dataset.v : null; }
+  app.querySelectorAll('[data-set="multi"] [aria-pressed="true"]').forEach(function(b){ s.multi.push(b.dataset.v); });
+  ["km","mn","st","wk","dn","in","out","lb","bk2","pg","ins","sl"].forEach(function(f){
+    var el = document.getElementById(f);
+    if (!el) return;
+    var v = el.value;
+    if (el.type === "number") v = v === "" ? 0 : parseFloat(v);
+    s[f] = v;
+  });
+  return s;
+}
+
+function renderAxis(id){
+  var x = AX.filter(function(a){ return a.id === id; })[0];
+  app.innerHTML =
+    '<button class="bk" data-act="back"><span class="gl">'+x.gl+'</span><span class="nm">'+x.nm+'</span><span class="vl" id="live">'+scoreOf(id)+'</span></button>'
+    + SCREENS[id]()
+    + '<button class="act" data-act="save">SAVE TO TODAY</button>'
+    + '<div class="err" id="err"></div>';
+
+  var saved = dayData()[id];
+  if (saved){
+    Object.keys(saved).forEach(function(k){
+      var el = document.getElementById(k);
+      if (el && saved[k] !== 0 && saved[k] !== "") el.value = saved[k];
+    });
+    app.querySelectorAll(".chip").forEach(function(b){
+      var hit = (saved.multi && saved.multi.indexOf(b.dataset.v) > -1) || saved.one === b.dataset.v;
+      if (hit) b.setAttribute("aria-pressed","true");
+    });
+  }
+  live();
+}
+
+function live(){
+  var el = document.getElementById("live");
+  if (!el) return;
+  var s = readForm(current);
+  el.textContent = SCORE[current](s);
+  var p = document.getElementById("pace");
+  if (p){
+    var k = s.km || 0, m = s.mn || 0;
+    p.textContent = (k > 0 && m > 0)
+      ? "Pace " + Math.floor(m/k) + ":" + String(Math.round((m/k % 1) * 60)).padStart(2,"0") + " /km"
+      : "Pace \u2014 . Copy it off Nike Run Club.";
+  }
+}
+
+function exportAll(){
+  var blob = new Blob([JSON.stringify(store.all(), null, 2)], {type:"application/json"});
+  var a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "tamas-os-" + todayKey() + ".json";
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+app.addEventListener("click", function(e){
+  var go = e.target.closest("[data-go]");
+  if (go){ current = go.dataset.go; view = "axis"; renderAxis(current); window.scrollTo(0,0); return; }
+
+  var chip = e.target.closest(".chip");
+  if (chip){
+    var set = chip.parentElement;
+    if (set.dataset.set === "one"){
+      var was = chip.getAttribute("aria-pressed") === "true";
+      set.querySelectorAll(".chip").forEach(function(b){ b.setAttribute("aria-pressed","false"); });
+      chip.setAttribute("aria-pressed", was ? "false" : "true");
+    } else {
+      chip.setAttribute("aria-pressed", chip.getAttribute("aria-pressed") === "true" ? "false" : "true");
+    }
+    live(); return;
+  }
+
+  var act = e.target.closest("[data-act]");
+  if (!act) return;
+  var a = act.dataset.act;
+
+  if (a === "back"){ view = "home"; renderHome(); window.scrollTo(0,0); return; }
+  if (a === "export"){ exportAll(); return; }
+  if (a === "save"){
+    var s = readForm(current);
+    var touched = s.one || s.multi.length || ["km","mn","st","wk","dn","in","out","bk2","pg","ins","sl"].some(function(f){
+      return s[f] !== undefined && s[f] !== 0 && s[f] !== "";
+    });
+    if (!touched){ document.getElementById("err").textContent = "Nothing logged yet."; return; }
+    document.getElementById("err").textContent = "";
+    s.score = SCORE[current](s);
+    putAxis(current, s);
+    act.textContent = "SAVED";
+    act.classList.add("done");
+    setTimeout(function(){ view = "home"; renderHome(); window.scrollTo(0,0); }, 450);
+  }
+});
+app.addEventListener("input", function(){ if (view === "axis") live(); });
+
+renderHome();
+</script>
+</body>
+</html>
